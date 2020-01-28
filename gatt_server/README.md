@@ -2,6 +2,5 @@
 
 This is code heavily modified from:
 
-https://github.com/getsenic/gatt-python
-
+https://github.com/Jumperr-labs/python-gatt-server
 
