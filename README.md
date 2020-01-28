@@ -2,6 +2,8 @@
 
 This is a project to work with r2_control, allowing status to be sent to a cheap wristband from AliExpress.
 
+PLEASE NOTE: This is very much a work in progress!!!!!
+
 ## Usage
 
 Flash the arduino code to the wristband, and set up the python script to run on the r2_control Raspberry Pi. 
