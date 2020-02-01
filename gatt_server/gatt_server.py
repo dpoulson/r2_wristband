@@ -3,10 +3,10 @@ import dbus
 import dbus.exceptions
 import dbus.mainloop.glib
 import dbus.service
-
+import requests
 import array
-
 import functools
+import urllib
 
 try:
   from gi.repository import GObject
@@ -299,9 +299,21 @@ class volumeChrc(Characteristic):
                 charVolumeUUID,
                 ['read'],
                 service)
+        self.volume = 30
+        GObject.timeout_add(5000, self.check_volume) 
 
     def ReadValue(self, options):
-        return [ 0x2E ]
+        print('Reading Volume: %s' % dbus.Byte(self.volume))
+        return [ dbus.Byte(self.volume) ]
+
+    def check_volume(self):
+        print('Updating volume level')
+        url = "http://localhost:5000/audio/volume"
+        f = urllib.urlopen(url)
+        cur_vol = float(f.readline())
+        print('Volume level = %s' % cur_vol)
+        self.volume = int(cur_vol*100)
+        return True
 
 class droidNameChrc(Characteristic):
 
@@ -347,9 +359,23 @@ class internetChrc(Characteristic):
                 charInternetUUID,
                 ['read'],
                 service)
+        self.internet = 0
+        GObject.timeout_add(5000, self.check_internet)
 
     def ReadValue(self, options):
-        return [ 0x01 ]
+        print('Reading Internet: %s' % dbus.Byte(self.internet))
+        return [ dbus.Byte(self.internet) ]
+
+    def check_internet(self):
+        print('Checking Internet status')
+        url = "http://localhost:5000/internet"
+        f = urllib.urlopen(url)
+        cur_internet = f.readline()
+        if (cur_internet == "True"):
+           self.internet = 1
+        else: 
+           self.internet = 0
+        return True
 
 
 
