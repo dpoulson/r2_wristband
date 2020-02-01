@@ -43,7 +43,7 @@ const char* password = "trial3211";
 
 //char droid_name[16];
 std::string droid_name;
-int wifi, internet;
+int wifi, internet, temperature;
 int volume,main_bat,controller_bat;
 
 #define LONG_PRESS 3000
@@ -58,6 +58,9 @@ static BLEUUID   charMainBatteryUUID("0000fff2-0000-1000-8000-00805f9b34fb");
 static BLEUUID   charCtrlBatteryUUID("0000fff3-0000-1000-8000-00805f9b34fb");
 static BLEUUID   charVolumeUUID("0000fff4-0000-1000-8000-00805f9b34fb");
 static BLEUUID   charDroidNameUUID("0000fff1-0000-1000-8000-00805f9b34fb");
+static BLEUUID   charTempUUID("0000fff5-0000-1000-8000-00805f9b34fb");
+static BLEUUID   charWifiUUID("0000fff6-0000-1000-8000-00805f9b34fb");
+static BLEUUID   charInternetUUID("0000fff7-0000-1000-8000-00805f9b34fb");
 
 
 static boolean doConnect = false;
@@ -67,6 +70,9 @@ static BLERemoteCharacteristic* pMainBattery;
 static BLERemoteCharacteristic* pCtrlBattery;
 static BLERemoteCharacteristic* pVolume;
 static BLERemoteCharacteristic* pDroidName;
+static BLERemoteCharacteristic* pTemperature;
+static BLERemoteCharacteristic* pWifi;
+static BLERemoteCharacteristic* pInternet;
 static BLEAdvertisedDevice* myDevice;
 
 /**
@@ -77,6 +83,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
    * Called for each advertising BLE server.
    */
   void onResult(BLEAdvertisedDevice advertisedDevice) {
+    tft.drawString("s", 3, 150, 1);
     Serial.print("BLE Advertised Device found: ");
     Serial.println(advertisedDevice.toString().c_str());
 
@@ -100,11 +107,14 @@ class MyClientCallback : public BLEClientCallbacks {
   void onDisconnect(BLEClient* pclient) {
     connected = false;
     Serial.println("onDisconnect");
+    tft.drawString("E", 3, 150, 1);
   }
 };
 
 bool connectToServer() {
     Serial.print("Forming a connection to ");
+    tft.drawString("c", 3, 150, 1);
+
     Serial.println(myDevice->getAddress().toString().c_str());
     
     BLEClient*  pClient  = BLEDevice::createClient();
@@ -118,6 +128,7 @@ bool connectToServer() {
 
     // Obtain a reference to the service we are after in the remote BLE server.
     BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
+    Serial.println(" - Scanning for service");
     if (pRemoteService == nullptr) {
       Serial.print("Failed to find our service UUID: ");
       Serial.println(serviceUUID.toString().c_str());
@@ -132,7 +143,10 @@ bool connectToServer() {
     pCtrlBattery = pRemoteService->getCharacteristic(charCtrlBatteryUUID);
     pVolume = pRemoteService->getCharacteristic(charVolumeUUID);
     pDroidName = pRemoteService->getCharacteristic(charDroidNameUUID);
-
+    pTemperature = pRemoteService->getCharacteristic(charTempUUID);
+    pWifi = pRemoteService->getCharacteristic(charWifiUUID);
+    pInternet = pRemoteService->getCharacteristic(charInternetUUID);
+    
     if (pDroidName == nullptr) {
       Serial.print("Failed to find our characteristic UUID: ");
       Serial.println(charDroidNameUUID.toString().c_str());
@@ -144,14 +158,25 @@ bool connectToServer() {
     controller_bat = pCtrlBattery->readUInt8();
     volume = pVolume->readUInt8();
     droid_name = pDroidName->readValue();
-    Serial.print("Droid Name: ");
+    temperature = pTemperature->readUInt8();
+    wifi = pWifi->readUInt8();
+    internet = pInternet->readUInt8();
+    
+    Serial.print("Droid Name    : ");
     Serial.println(droid_name.c_str());
-    Serial.print("Main Battery: ");
+    Serial.print("Main Battery  : ");
     Serial.println(main_bat);
-    Serial.print("CTRL Battery: ");
+    Serial.print("CTRL Battery  : ");
     Serial.println(controller_bat);
-    Serial.print("Volume: ");
+    Serial.print("Volume        : ");
     Serial.println(volume);
+    Serial.print("Temperature   : ");
+    Serial.println(temperature);
+    Serial.print("Wifi          : ");
+    Serial.println(wifi);
+    Serial.print("Internet      : ");
+    Serial.println(internet);
+    
     connected = true;
 }
 
@@ -159,7 +184,7 @@ void setup() {
   // put your setup code here, to run once:
     Serial.begin(115200);
     pressedTime = millis();
-    
+    setCpuFrequencyMhz(80);
     tft.init();
     tft.setRotation(0);
     tft.setSwapBytes(true);
@@ -170,6 +195,9 @@ void setup() {
     tft.pushImage(0,52,16,16,battery);
     tft.pushImage(0,70,16,16,controller);
     tft.pushImage(0,88,16,16,speaker);
+
+    tft.setTextColor(TFT_BLUE, TFT_BLACK);
+    tft.drawString(getVoltage(), 40, 150, 1);
 
     pinMode(TP_PIN_PIN, INPUT);
     //! Must be set to pull-up output mode in order to wake up in deep sleep mode
@@ -183,6 +211,13 @@ void setup() {
         charge_indication = true;
     }, CHANGE);
 
+    attachInterrupt(TP_PIN_PIN, [] {
+      tft.writecommand(ST7735_SLPIN);
+     tft.writecommand(ST7735_DISPOFF);
+     esp_sleep_enable_ext1_wakeup(GPIO_SEL_33, ESP_EXT1_WAKEUP_ANY_HIGH);
+     esp_deep_sleep_start();         
+    }, CHANGE);
+
     if (digitalRead(CHARGE_PIN) == LOW) {
         charge_indication = true;
     }
@@ -194,10 +229,10 @@ void setup() {
     // scan to run for 5 seconds.
     BLEScan* pBLEScan = BLEDevice::getScan();
     pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
-    pBLEScan->setInterval(1349);
-    pBLEScan->setWindow(449);
+    pBLEScan->setInterval(100);
+    pBLEScan->setWindow(99);
     pBLEScan->setActiveScan(true);
-    pBLEScan->start(5, false);
+    pBLEScan->start(3, false);
     // If the flag "doConnect" is true then we have scanned for and found the desired
     // BLE Server with which we wish to connect.  Now we connect to it.  Once we are 
     // connected we set the connected flag to be true.
@@ -234,6 +269,7 @@ void setup() {
      drawProgressBar(20, 70, 55, 14, controller_bat, TFT_WHITE, TFT_BLUE);
      // Volume
      drawProgressBar(20, 88, 55, 14, volume, TFT_WHITE, TFT_BLUE);
+     Serial.println("Finished setup()");
 }
 
 void loop() {
@@ -252,18 +288,11 @@ void loop() {
             initial = 1;
             tft.fillScreen(TFT_BLACK);
             func_select = func_select + 1 > 2 ? 0 : func_select + 1;
-            digitalWrite(LED_PIN, HIGH);
-            delay(100);
-            digitalWrite(LED_PIN, LOW);
+            //digitalWrite(LED_PIN, HIGH);
+            //delay(100);
+            //digitalWrite(LED_PIN, LOW);
             pressed = true;
             pressedTime = millis();
-        } else {
-            if (millis() - pressedTime > LONG_PRESS) {
-                tft.fillScreen(TFT_BLACK);
-                tft.drawString("Reset WiFi Setting",  20, tft.height() / 2 );
-                delay(3000);
-                esp_restart();
-            }
         }
     } else {
         pressed = false;
@@ -290,11 +319,11 @@ void loop() {
    }
 }
 
-float getVoltage()
+String getVoltage()
 {
     uint16_t v = analogRead(BATT_ADC_PIN);
     float battery_voltage = ((float)v / 4095.0) * 2.0 * 3.3 * (vref / 1000.0);
-    return battery_voltage;
+    return String(battery_voltage) + "V";
 }
 
 
