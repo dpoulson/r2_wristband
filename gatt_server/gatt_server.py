@@ -38,6 +38,10 @@ charMainBatteryUUID = "0000fff2-0000-1000-8000-00805f9b34fb"
 charCtrlBatteryUUID = "0000fff3-0000-1000-8000-00805f9b34fb"
 charVolumeUUID      = "0000fff4-0000-1000-8000-00805f9b34fb"
 charDroidNameUUID   = "0000fff1-0000-1000-8000-00805f9b34fb"
+charTempUUID        = "0000fff5-0000-1000-8000-00805f9b34fb"
+charWifiUUID        = "0000fff6-0000-1000-8000-00805f9b34fb"
+charInternetUUID    = "0000fff7-0000-1000-8000-00805f9b34fb"
+
 
 
 class Application(dbus.service.Object):
@@ -256,6 +260,10 @@ class AstromechService(Service):
         self.add_characteristic(ctrlBatteryChrc(bus, 1, self))
         self.add_characteristic(volumeChrc(bus, 2, self))
         self.add_characteristic(droidNameChrc(bus, 3, self))
+        self.add_characteristic(temperatureChrc(bus, 4, self))
+        self.add_characteristic(wifiChrc(bus, 5, self))
+        self.add_characteristic(internetChrc(bus, 6, self))
+
         self.energy_expended = 0
 
 
@@ -269,7 +277,6 @@ class mainBatteryChrc(Characteristic):
                 service)
 
     def ReadValue(self, options):
-        # Return 'Chest' as the sensor location.
         return [ 0x40 ]
 
 class ctrlBatteryChrc(Characteristic):
@@ -282,7 +289,6 @@ class ctrlBatteryChrc(Characteristic):
                 service)
 
     def ReadValue(self, options):
-        # Return 'Chest' as the sensor location.
         return [ 0x31 ]
 
 class volumeChrc(Characteristic):
@@ -295,7 +301,6 @@ class volumeChrc(Characteristic):
                 service)
 
     def ReadValue(self, options):
-        # Return 'Chest' as the sensor location.
         return [ 0x2E ]
 
 class droidNameChrc(Characteristic):
@@ -308,8 +313,44 @@ class droidNameChrc(Characteristic):
                 service)
 
     def ReadValue(self, options):
-        # Return 'Chest' as the sensor location.
         return [ 0x52, 0x32, 0x44, 0x32 ]
+
+class temperatureChrc(Characteristic):
+
+    def __init__(self, bus, index, service):
+        Characteristic.__init__(
+                self, bus, index,
+                charTempUUID,
+                ['read'],
+                service)
+
+    def ReadValue(self, options):
+        return [ 0x2E ]
+
+class wifiChrc(Characteristic):
+
+    def __init__(self, bus, index, service):
+        Characteristic.__init__(
+                self, bus, index,
+                charWifiUUID,
+                ['read'],
+                service)
+
+    def ReadValue(self, options):
+        return [ 0x01 ]
+
+class internetChrc(Characteristic):
+
+    def __init__(self, bus, index, service):
+        Characteristic.__init__(
+                self, bus, index,
+                charInternetUUID,
+                ['read'],
+                service)
+
+    def ReadValue(self, options):
+        return [ 0x01 ]
+
 
 
 class CharacteristicUserDescriptionDescriptor(Descriptor):
